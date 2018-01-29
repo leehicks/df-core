@@ -1,5 +1,8 @@
 <?php
+
 namespace DreamFactory\Core\Database\Schema;
+
+use DreamFactory\Core\Enums\DbSimpleTypes;
 
 
 /**
@@ -33,9 +36,9 @@ class TableSchema extends NamedResourceSchema
      */
     public $nameField;
     /**
-     * @var string|array Primary key name of this table. If composite key, an array of key names is returned.
+     * @var array Primary key name of this table. Array of zero or more column names returned.
      */
-    public $primaryKey;
+    public $primaryKey = [];
     /**
      * @var string Sequence name for the primary key. Null if no sequence.
      */
@@ -50,10 +53,11 @@ class TableSchema extends NamedResourceSchema
      */
     public $columnAliases = [];
     /**
-     * @var array Foreign keys of this table. The array is indexed by column name. Each value is an array of foreign
+     * @var array Constraints of this table. The array is indexed by constraint name.
+     *      Each value is an array of constraint information containing things like foreign
      *      table name and foreign column name.
      */
-    public $foreignKeys = [];
+    public $constraints = [];
     /**
      * @var array Relationship metadata of this table. Each array element is a RelationSchema object, indexed by
      *      lowercase relation name.
@@ -103,6 +107,41 @@ class TableSchema extends NamedResourceSchema
     public function getPlural($use_alias = false)
     {
         return (empty($this->plural)) ? str_plural($this->getLabel($use_alias)) : $this->plural;
+    }
+
+    public function addPrimaryKey($name)
+    {
+        if (empty($this->primaryKey)) {
+            $this->primaryKey = [$name];
+        } elseif (is_string($this->primaryKey) && ($this->primaryKey !== $name)) {
+            $this->primaryKey = [$this->primaryKey, $name];
+        } else {
+            if (false === array_search($name, $this->primaryKey)) {
+                $this->primaryKey[] = $name;
+            }
+        }
+    }
+
+    /**
+     * @param bool $include_type_info
+     * @return array
+     */
+    public function getPrimaryKey($include_type_info = false)
+    {
+        return (array)$this->primaryKey;
+    }
+
+    /**
+     * @return ColumnSchema[]
+     */
+    public function getPrimaryKeyColumns()
+    {
+        $pkinfo = [];
+        foreach ((array)$this->primaryKey as $pk) {
+            $pkinfo[$pk] = $this->getColumn($pk);
+        }
+
+        return $pkinfo;
     }
 
     /**
@@ -273,8 +312,62 @@ class TableSchema extends NamedResourceSchema
                 $relations[] = $relation->toArray($use_alias);
             }
             $out['related'] = $relations;
+
+            $out['constraints'] = $this->constraints;
         }
 
         return $out;
+    }
+
+    public static function getSchema()
+    {
+        return [
+            'name'        => 'db_schema_table',
+            'description' => 'The database table schema.',
+            'type'        => DbSimpleTypes::TYPE_OBJECT,
+            'properties'  => [
+                'name'        => [
+                    'type'        => DbSimpleTypes::TYPE_STRING,
+                    'description' => 'Identifier/Name for the table.',
+                ],
+                'label'       => [
+                    'type'        => DbSimpleTypes::TYPE_STRING,
+                    'description' => 'Displayable singular name for the table.',
+                ],
+                'description' => [
+                    'type'        => DbSimpleTypes::TYPE_STRING,
+                    'description' => 'Description of the table.',
+                ],
+                'plural'      => [
+                    'type'        => DbSimpleTypes::TYPE_STRING,
+                    'description' => 'Displayable plural name for the table.',
+                ],
+                'primary_key' => [
+                    'type'        => DbSimpleTypes::TYPE_ARRAY,
+                    'description' => 'Field(s), if any, that represent the primary key of each record.',
+                    'items'       => [
+                        'type' => DbSimpleTypes::TYPE_STRING
+                    ]
+                ],
+                'name_field'  => [
+                    'type'        => DbSimpleTypes::TYPE_STRING,
+                    'description' => 'Field(s), if any, that represent the name of each record.',
+                ],
+                'field'       => [
+                    'type'        => DbSimpleTypes::TYPE_ARRAY,
+                    'description' => 'An array of available fields in this table.',
+                    'items'       => [
+                        'type' => 'db_schema_table_field',//ColumnSchema::class,
+                    ],
+                ],
+                'related'     => [
+                    'type'        => DbSimpleTypes::TYPE_ARRAY,
+                    'description' => 'An array of available relationships to other tables.',
+                    'items'       => [
+                        'type' => 'db_schema_table_relation', //RelationSchema::class,
+                    ],
+                ],
+            ],
+        ];
     }
 }

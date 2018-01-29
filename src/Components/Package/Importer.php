@@ -917,14 +917,12 @@ class Importer
                         $resourcePath = $service . '/' . ltrim($resource, '/');
                         $file = $this->package->getFileFromZip($resourcePath);
                         if (!empty($file)) {
-                            $storage->driver()
-                                ->moveFile($storage->getContainerId(), ltrim($resource, '/'), $file, true);
+                            $storage->moveFile(ltrim($resource, '/'), $file, true);
                         } else {
                             $resourcePath = $service . '/' . trim($resource, '/') . '/' . md5($resource) . '.zip';
                             $zip = $this->package->getZipFromZip($resourcePath);
                             if (!empty($zip)) {
-                                $storage->driver()->extractZipFile(
-                                    $storage->getContainerId(),
+                                $storage->extractZipFile(
                                     rtrim($resource, '/') . '/',
                                     $zip,
                                     false,
@@ -1133,7 +1131,9 @@ class Importer
      * @param $resource
      *
      * @return array
+     * @throws \DreamFactory\Core\Exceptions\ForbiddenException
      * @throws \DreamFactory\Core\Exceptions\InternalServerErrorException
+     * @throws \DreamFactory\Core\Exceptions\RestException
      */
     protected function cleanDuplicates($data, $service, $resource)
     {
@@ -1172,28 +1172,13 @@ class Importer
                                 );
                             }
                         } catch (RestException $e) {
-//                            if($e->getCode() === HttpStatusCodes::HTTP_FORBIDDEN){
-//                                $this->log(
-//                                    'error',
-//                                    'An unexpected error occurred. ' .
-//                                    'Could not overwrite an existing ' .
-//                                    $api . ' resource with ' . $key . ' ' .
-//                                    $value . '. ' . $e->getMessage()
-//                                );
-//                            } else {
-//                                throw new InternalServerErrorException(
-//                                    'An unexpected error occurred. ' .
-//                                    'Could not overwrite an existing ' .
-//                                    $api . ' resource with ' . $key . ' ' .
-//                                    $value . '. ' . $e->getMessage()
-//                                );
-//                            }
                             $this->throwExceptions(
                                 $e,
                                 'An unexpected error occurred. ' .
                                 'Could not overwrite an existing ' .
                                 $api . ' resource with ' . $key . ' ' .
-                                $value
+                                $value . '. It could be due to your existing resource being exactly ' .
+                                'same as your overwriting resource. Try deleting your existing resource and re-import.'
                             );
                         }
                     } else {
